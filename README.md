@@ -63,8 +63,10 @@ co:code는 엔지니어뿐 아니라 디자이너, PM도 하나의 엔지니어�
 터미널을 열고 (**Ctrl + Alt + T**), 아래 한 줄을 붙여넣은 뒤 Enter를 누르세요.
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/coco-de/co-linux/main/linux-setup.sh)"
+d="$(mktemp -d)" && curl -fsSL https://raw.githubusercontent.com/coco-de/co-linux/main/linux-setup.sh -o "$d/linux-setup.sh" && bash "$d/linux-setup.sh"
 ```
+
+> 💡 **맥(co-mac)과 명령 모양이 다릅니다.** 맥에서 쓰는 `bash -c "$(curl ...)"` 형태는 리눅스에서 동작하지 않습니다 — 리눅스 커널은 **인자 하나의 크기를 128KiB로 제한**하는데(`MAX_ARG_STRLEN`) 이 스크립트가 그보다 커서 `Argument list too long` 으로 실행 자체가 막힙니다. 그래서 임시 폴더로 받아 실행합니다.
 
 > ⏱ **설치에는 30분~2시간 정도 걸립니다.** Android SDK가 수 GB짜리이고 pyenv가 파이썬을 소스에서 직접 빌드해서, 네트워크·CPU 속도에 따라 차이가 큽니다. 중간에 창을 닫지 마시고, 다른 일을 하셔도 됩니다.
 
@@ -110,8 +112,8 @@ chmod +x linux-setup.sh
 | `--system-only` | 관리자 권한이 필요한 설정(docker·kvm 그룹, Android 기기 인식 규칙)만 다시 점검 |
 | `-h`, `--help` | 사용법 표시 |
 
-> ⚠️ 한 줄 실행으로 옵션을 주려면 **`--` 를 꼭 붙여야 합니다**: `/bin/bash -c "$(curl -fsSL …)" -- --dart-only`
-> `--` 를 빠뜨리면 옵션이 통째로 무시되고 수십 분짜리 전체 설치가 시작됩니다. (스크립트가 이 상황을 감지해서 멈추고 알려드립니다.)
+> 💡 한 줄 실행에서도 옵션은 그냥 뒤에 붙이면 됩니다 — `bash "$d/linux-setup.sh" --dart-only` 처럼요.
+> (clone 해서 쓰신다면 `./linux-setup.sh --dart-only` 로 똑같이 쓰시면 됩니다.)
 
 <br>
 <a id="tech-stack"></a>

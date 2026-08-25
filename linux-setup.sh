@@ -8,7 +8,12 @@
 #
 # 실행 (레포를 clone한 경우): chmod +x linux-setup.sh && ./linux-setup.sh
 # 실행 (clone 없이 한 줄로):
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/coco-de/co-linux/main/linux-setup.sh)"
+#   d="$(mktemp -d)" && curl -fsSL https://raw.githubusercontent.com/coco-de/co-linux/main/linux-setup.sh -o "$d/linux-setup.sh" && bash "$d/linux-setup.sh"
+#   └ ⚠ 맥처럼 `bash -c "$(curl ...)"` 로 쓰면 안 된다. 리눅스 커널은 ARG_MAX 와 별개로
+#     **인자 하나의 크기**를 128KiB(MAX_ARG_STRLEN)로 제한하는데 이 스크립트는 그보다 커서
+#     "Argument list too long" 으로 실행 자체가 실패한다. (맥에는 그 제한이 없다)
+#   └ 임시 폴더로 받는 방식이라 표준입력도 그대로 남아 3.2단계의 이메일 입력이 정상 동작하고,
+#     옵션도 `-- ` 없이 그냥 뒤에 붙이면 된다: bash "$d/linux-setup.sh" --dart-only
 #   └ 이 경우 스크립트 파일 하나만 내려오므로, 팀 셸 설정(.zshrc·.p10k.zsh)은
 #     0.5단계에서 같은 레포에서 따로 내려받는다.
 #   └ 이미 세팅한 PC에서 토큰(환경변수)만 다시 주입하려면: ./linux-setup.sh --env-only
@@ -155,8 +160,8 @@ done
 if [[ "$0" == --?* || "$0" == "-h" ]]; then
   echo "❌ 옵션이 스크립트에 전달되지 않았습니다: $0"
   echo ""
-  echo "   curl 한 줄로 실행할 때는 옵션 앞에 '--' 가 필요합니다:"
-  echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/coco-de/co-linux/main/linux-setup.sh)\" -- $0"
+  echo "   임시 폴더로 받아 실행하는 방식을 쓰시면 옵션을 그냥 뒤에 붙이면 됩니다:"
+  echo "   d=\"\$(mktemp -d)\" && curl -fsSL https://raw.githubusercontent.com/coco-de/co-linux/main/linux-setup.sh -o \"\$d/linux-setup.sh\" && bash \"\$d/linux-setup.sh\" $0"
   exit 1
 fi
 
@@ -1159,41 +1164,45 @@ EOF
   unset ORCA_BIN
 
   # --- Lumide ---
-  #   GitHub 릴리스에 리눅스 x64/ARM64 빌드가 올라오지만, 자산(파일) 이름이 버전마다 달라질 수
-  #   있어 자동 설치를 보장할 수 없다. gh(GitHub CLI)가 인증돼 있으면 AppImage를 찾아 받고,
-  #   못 찾으면 조용히 공식 사이트만 안내하고 넘어간다.
-  LUMIDE_REPO="lumide-dev/lumide"    # 릴리스 주소가 바뀌면 이 줄만 고치면 된다
+  #   리눅스판은 AppImage 가 아니라 **tar.gz** 로 올라온다 (Lumide-Linux-<버전>-<아키텍처>.tar.gz).
+  #   공개 레포라 gh 인증 없이 API 로 자산 주소를 찾을 수 있다. 자산 이름이 바뀌면 조용히
+  #   공식 사이트만 안내하고 넘어간다.
+  LUMIDE_REPO="SoFluffyOS/lumide"    # 릴리스 주소가 바뀌면 이 줄만 고치면 된다
   LUMIDE_BIN="$HOME/.local/bin/lumide"
   if have lumide || [[ -x "$LUMIDE_BIN" ]]; then
     ok "Lumide 이미 설치됨"
-  elif have gh && gh auth status >/dev/null 2>&1; then
+  else
     case "$ARCH" in
-      arm64) LUMIDE_PATTERN="*arm64*.AppImage" ;;
-      *)     LUMIDE_PATTERN="*x86_64*.AppImage" ;;
+      arm64) LUMIDE_SUFFIX="arm64.tar.gz" ;;
+      *)     LUMIDE_SUFFIX="x86_64.tar.gz" ;;
     esac
     # 임시 폴더를 못 만들면 아래 rm -rf가 엉뚱한 곳을 지우지 않도록 빈 값으로 두고 건너뛴다.
     LUMIDE_TMP="$(mktemp -d 2>/dev/null || true)"
-    LUMIDE_FILE=""
-    if [[ -n "$LUMIDE_TMP" ]] && gh release download --repo "$LUMIDE_REPO" --pattern "$LUMIDE_PATTERN" --dir "$LUMIDE_TMP" >/dev/null 2>&1; then
-      LUMIDE_FILE="$(find "$LUMIDE_TMP" -maxdepth 1 -name '*.AppImage' 2>/dev/null | head -1)"
-    fi
-    if [[ -n "$LUMIDE_FILE" ]]; then
-      mkdir -p "$HOME/.local/bin" || true
-      if mv "$LUMIDE_FILE" "$LUMIDE_BIN" && chmod +x "$LUMIDE_BIN"; then
-        ok "Lumide 설치 완료 (~/.local/bin/lumide)"
+    # 공개 레포라 인증 없이 릴리스 API 로 자산 주소를 얻는다.
+    LUMIDE_URL="$(curl -fsSL "https://api.github.com/repos/$LUMIDE_REPO/releases/latest" 2>/dev/null \
+      | grep '"browser_download_url"' | cut -d'"' -f4 | grep -- "$LUMIDE_SUFFIX" | head -1 || true)"
+    if [[ -n "$LUMIDE_TMP" && -n "$LUMIDE_URL" ]] \
+       && curl -fsSL "$LUMIDE_URL" -o "$LUMIDE_TMP/lumide.tar.gz" \
+       && mkdir -p "$HOME/.local/share/lumide" \
+       && tar -xzf "$LUMIDE_TMP/lumide.tar.gz" -C "$HOME/.local/share/lumide" --strip-components=1 2>/dev/null; then
+      # 압축 안의 실행 파일 이름이 버전마다 다를 수 있어 실제로 찾아서 링크를 건다.
+      LUMIDE_EXE="$(find "$HOME/.local/share/lumide" -maxdepth 2 -type f -name 'lumide*' -perm -u+x 2>/dev/null | head -1)"
+      if [[ -n "$LUMIDE_EXE" ]]; then
+        mkdir -p "$HOME/.local/bin" || true
+        ln -sf "$LUMIDE_EXE" "$LUMIDE_BIN" && ok "Lumide 설치 완료 (~/.local/share/lumide)" \
+          || warn "Lumide 바로가기 생성 실패 → 직접 실행: $LUMIDE_EXE"
       else
-        warn "Lumide 설치 실패 → 건너뜀"
+        warn "Lumide 압축을 풀었지만 실행 파일을 찾지 못했습니다 → 건너뜀"
         info "직접 내려받기: https://lumide.dev/"
       fi
+      unset LUMIDE_EXE
     else
       warn "Lumide 릴리스 파일을 찾지 못했습니다 → 건너뜀 (자산 이름이 바뀌었을 수 있습니다)"
       info "직접 내려받기: https://lumide.dev/"
     fi
+    unset LUMIDE_SUFFIX LUMIDE_URL
     if [[ -n "$LUMIDE_TMP" ]]; then rm -rf "$LUMIDE_TMP"; fi
-    unset LUMIDE_PATTERN LUMIDE_TMP LUMIDE_FILE
-  else
-    warn "Lumide 자동 설치를 건너뜁니다 (gh 인증 전이라 릴리스 파일을 받을 수 없습니다)"
-    info "3.4단계에서 GitHub 인증을 마친 뒤 다시 실행하거나, 직접 내려받으세요: https://lumide.dev/"
+    unset LUMIDE_TMP
   fi
   unset LUMIDE_REPO LUMIDE_BIN
 
@@ -1660,7 +1669,28 @@ fi
 if have lefthook; then
   ok "lefthook 이미 설치됨"
 else
-  curl -1sLf https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh 2>/dev/null | bash >/dev/null 2>&1 || true
+  # ⚠ 예전 안내에 있던 raw.githubusercontent.com/.../install.sh 는 **지금 404 다**(레포에서 삭제됨).
+  #   대신 GitHub 릴리스에 올라오는 정적 바이너리(lefthook_<버전>_Linux_<아키텍처>.gz)를 직접 받는다.
+  #   공개 레포라 인증이 필요 없다.
+  mkdir -p "$HOME/.local/bin" 2>/dev/null || true
+  case "$ARCH" in
+    arm64) lh_arch="arm64" ;;
+    *)     lh_arch="x86_64" ;;
+  esac
+  lh_tag="$(curl -fsSL https://api.github.com/repos/evilmartians/lefthook/releases/latest 2>/dev/null \
+            | grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
+  if [[ -n "$lh_tag" ]]; then
+    lh_tmp="$(mktemp -d)"
+    if curl -fsSL "https://github.com/evilmartians/lefthook/releases/download/${lh_tag}/lefthook_${lh_tag#v}_Linux_${lh_arch}.gz" -o "$lh_tmp/lefthook.gz" \
+       && gunzip -c "$lh_tmp/lefthook.gz" > "$HOME/.local/bin/lefthook" 2>/dev/null \
+       && chmod +x "$HOME/.local/bin/lefthook"; then
+      path_prepend "$HOME/.local/bin"
+    else
+      rm -f "$HOME/.local/bin/lefthook"
+    fi
+    rm -rf "$lh_tmp"
+  fi
+  unset lh_arch lh_tag lh_tmp
   hash -r 2>/dev/null || true
   if ! have lefthook && have go; then
     # go 폴백 — 방금 3단계에서 golang-go 를 깔았으므로 대개 여기서 성공한다.
@@ -1672,7 +1702,9 @@ else
   if have lefthook; then
     ok "lefthook 설치 완료"
   else
-    warn "lefthook 설치 실패 → 건너뜀 (수동 설치: curl -1sLf https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh | bash)"
+    warn "lefthook 설치 실패 → 건너뜀"
+    info "수동 설치: https://github.com/evilmartians/lefthook/releases 에서 lefthook_<버전>_Linux_<아키텍처>.gz 를 받아"
+    info "           gunzip 후 ~/.local/bin/lefthook 으로 옮기고 chmod +x 하세요"
   fi
 fi
 
