@@ -29,6 +29,7 @@
 #   1.   GUI 앱 (Android Studio·Slack·Chrome·1Password·Tailscale·Orca·Lumide·Zed·Claude Desktop)
 #   1.6. Chrome 확장 프로그램 자동 추가 (ZenHub for GitHub)
 #   1.7. Pretendard 폰트 설치 (9개 스타일)
+#   1.8. 1Password CLI(op) — 화면 없는 환경 보완 (1단계를 건너뛴 경우에만 동작)
 #   2.   Claude Code CLI
 #   2.5. Claude MCP (figma 플러그인 + zenhub·jira(mcp-atlassian)·slack 토큰 등록)
 #   2.6. 다른 AI 코딩 CLI (codex=OpenAI · agy=Google Antigravity)
@@ -41,6 +42,7 @@
 #   4.   Flutter/Dart(FVM) · Dart 글로벌 · gcloud · DCM · Android SDK/AVD
 #   5.   Python (pyenv)
 #   6.   Node.js (nvm)
+#   6.1. codex 재시도 (2.6단계는 Node.js 이전이라 그때 건너뛴 경우)
 #   6.5. Claude Code 상태줄 (ccstatusline)
 #   7.   oh-my-zsh + powerlevel10k
 #   7.5. 터미널 폰트 자동 적용 (MesloLGS NF — GNOME Terminal·Konsole)
@@ -319,11 +321,11 @@ apt_install() {
 
   # 한 번에 시도하고, 통째로 실패하면 하나씩 다시 시도한다 —
   # 없는 패키지 이름 하나 때문에 나머지 열 개까지 못 깔 이유가 없다.
-  if DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq "${missing[@]}" >/dev/null 2>&1; then
+  if $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" </dev/null >/dev/null 2>&1; then
     for pkg in "${missing[@]}"; do ok "$pkg 설치 완료"; done
   else
     for pkg in "${missing[@]}"; do
-      if DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq "$pkg" >/dev/null 2>&1; then
+      if $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" </dev/null >/dev/null 2>&1; then
         ok "$pkg 설치 완료"
       else
         warn "$pkg 설치 실패 → 건너뜀 (수동 설치: sudo apt install $pkg)"
@@ -413,7 +415,7 @@ install_deb() {
     return 1
   fi
   # apt-get install 로 설치하면 의존성까지 알아서 끌어온다 (dpkg -i 는 의존성에서 막힌다).
-  if DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq "$tmp_deb" >/dev/null 2>&1; then
+  if $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$tmp_deb" </dev/null >/dev/null 2>&1; then
     ok "$name 설치 완료"
   else
     warn "$name 설치 실패 → 건너뜀"
@@ -658,7 +660,7 @@ dart_prepare_path() {
   #     그래서 이미 PATH에 있더라도 한 번 빼고 다시 맨 앞에 붙인다.
   #     (전체 실행의 4-a도 같은 경로를 그대로 앞에 얹으므로 동작이 서로 어긋나지 않는다.)
   #   목록 순서상 뒤에 오는 것이 최종적으로 더 앞에 놓인다 → pub-cache/bin, fvm/default/bin 순.
-  for dir in "$HOME/.fvm_flutter/bin" "$HOME/fvm/default/bin" "$PUB_CACHE/bin"; do
+  for dir in "$HOME/.fvm_flutter/bin" "$HOME/fvm/bin" "$HOME/fvm/default/bin" "$PUB_CACHE/bin"; do
     [[ -d "$dir" ]] || continue
     rest=":$PATH:"
     rest="${rest//:$dir:/:}"   # 기존 항목 제거
@@ -670,7 +672,7 @@ dart_prepare_path() {
 
 run_dart_packages_step() {
   dart_prepare_path
-  log "Dart 글로벌 패키지 설치 (coverage, melos, mason_cli, flutter_gen, jaspr_cli, serverpod_cli, flutterfire_cli + marionette_mcp, mcp_server_dart, cob)"
+  log "4-b. Dart 글로벌 패키지 설치 (coverage, melos, mason_cli, flutter_gen, jaspr_cli, serverpod_cli, flutterfire_cli + marionette_mcp, mcp_server_dart, cob)"
   # 버전을 고정하지 않는 기본 패키지들은 한 번에 돌린다.
   #   dart pub global activate는 이미 설치돼 있어도 최신으로 다시 활성화만 하므로 여러 번 실행해도 안전하다.
   for pkg in coverage melos mason_cli flutter_gen jaspr_cli; do
@@ -880,7 +882,7 @@ reload_udev_rules() {
 }
 
 run_system_permission_step() {
-  log "시스템 권한 설정 (docker·kvm 그룹, 안드로이드 기기 USB 규칙)"
+  log "9. 시스템 권한 설정 (docker·kvm 그룹, 안드로이드 기기 USB 규칙)"
 
   # ── docker 그룹 ────────────────────────────────────────────
   # 가입하지 않으면 docker 명령마다 sudo 를 붙여야 하고, Claude Code 안에서 도는
@@ -989,7 +991,7 @@ if (( ! ENV_ONLY )); then
 # ------------------------------------------------------------
 if [[ "$HAS_GUI" -ne 0 ]]; then
 
-  log "GUI 앱 · Chrome 확장 · Pretendard 폰트 설치 (건너뜀)"
+  log "1 · 1.6 · 1.7. GUI 앱 · Chrome 확장 · Pretendard 폰트 (건너뜀)"
   warn "데스크톱 화면이 없는 환경으로 보입니다 → 1 · 1.6 · 1.7단계를 건너뜁니다"
   info "(서버·컨테이너·SSH 접속 환경에서는 GUI 앱이 실행되지 않습니다)"
   info "나중에 데스크톱 환경에서 이 스크립트를 다시 실행하면 그때 설치됩니다"
@@ -1003,7 +1005,7 @@ else
   #   공식 스크립트(Tailscale·Zed) / AppImage(Orca·Lumide) 로 나뉜다.
   #   어떤 앱이 실패해도 나머지는 계속 깔린다.
   # ------------------------------------------------------------
-  log "GUI 앱 설치 (Android Studio, Slack, Chrome, 1Password, Tailscale, Claude Desktop, Zed, Orca, Lumide) + 1Password CLI(op — 앱이 아닌 터미널 도구)"
+  log "1. GUI 앱 설치 (Android Studio, Slack, Chrome, 1Password, Tailscale, Claude Desktop, Zed, Orca, Lumide) + 1Password CLI(op — 앱이 아닌 터미널 도구)"
 
   # snap 준비 — 우분투는 기본 탑재지만 데비안에는 없다. 없으면 먼저 깔아 둔다.
   #   (Android Studio·Slack이 snap으로만 공식 배포된다)
@@ -1094,7 +1096,8 @@ else
   #   실패하면 공식 다운로드 페이지만 안내하고 계속 진행한다.
   if is_installed claude-desktop; then
     ok "Claude Desktop 이미 설치됨"
-  elif add_apt_repo claude https://claude.ai/deb/pubkey.gpg "https://claude.ai/deb stable main"; then
+  elif add_apt_repo claude-desktop https://downloads.claude.ai/claude-desktop/key.asc \
+        "https://downloads.claude.ai/claude-desktop/apt/stable stable main"; then
     apt_install claude-desktop || true
     if ! is_installed claude-desktop; then
       info "저장소 주소가 바뀌었을 수 있습니다 → https://claude.com/download 에서 직접 내려받아 주세요"
@@ -1128,7 +1131,10 @@ else
     ok "Orca 이미 설치됨"
   else
     mkdir -p "$HOME/.local/bin" || true
-    if curl -fsSL "https://github.com/stablyai/orca/releases/latest/download/orca-linux.AppImage" -o "$ORCA_BIN.part" \
+    # 릴리스에 orca-linux.AppImage(x86_64) 와 orca-linux-arm64.AppImage 가 따로 올라온다.
+    #   아키텍처를 무시하고 받으면 ARM64 PC 에서 "cannot execute binary file" 로 실행만 안 된다.
+    if [[ "$ARCH" == "arm64" ]]; then ORCA_ASSET="orca-linux-arm64.AppImage"; else ORCA_ASSET="orca-linux.AppImage"; fi
+    if curl -fsSL "https://github.com/stablyai/orca/releases/latest/download/$ORCA_ASSET" -o "$ORCA_BIN.part" \
       && chmod +x "$ORCA_BIN.part" \
       && mv "$ORCA_BIN.part" "$ORCA_BIN"; then
       ok "Orca 설치 완료 (~/.local/bin/orca)"
@@ -1211,7 +1217,7 @@ EOF
   #   브라우저의 변조 감지로 되돌아가므로 이 공식 경로만 동작한다).
   #   시스템 폴더라 관리자 권한이 필요하고, 권한이 없으면 방법만 안내하고 건너뛴다.
   # ------------------------------------------------------------
-  log "Chrome 확장 프로그램 자동 추가 (ZenHub for GitHub)"
+  log "1.6. Chrome 확장 프로그램 자동 추가 (ZenHub for GitHub)"
 
   ZENHUB_EXT_ID="ogcgkffhplmphkaahpmffcafajaocjbd"
   ZENHUB_EXT_DIR="/opt/google/chrome/extensions"
@@ -1243,7 +1249,7 @@ EOF
   #   (관리자 권한이 필요 없는 사용자 전용 폰트 폴더다)
   #   마지막에 fc-cache로 폰트 목록을 갱신해야 이미 실행 중인 앱 밖에서도 바로 인식된다.
   # ------------------------------------------------------------
-  log "Pretendard 폰트 설치 (9개 스타일: Thin~Black)"
+  log "1.7. Pretendard 폰트 설치 (9개 스타일: Thin~Black)"
 
   PRETENDARD_DIR="$HOME/.local/share/fonts"
   PRETENDARD_BASE="https://github.com/orioncactus/pretendard/raw/main/packages/pretendard/dist/public/static"
@@ -1280,6 +1286,29 @@ EOF
 
 fi
 
+# ------------------------------------------------------------
+# 1.8. 1Password CLI(op) — 화면 없는 환경 보완
+#   op 는 앱이 아니라 **터미널 도구**다. 위 1단계(GUI 전용 블록) 안에서 데스크톱 앱과 함께
+#   깔리지만, 화면 없는 서버·컨테이너에서는 그 블록을 통째로 건너뛰므로 op 도 함께 빠진다.
+#   그러면 3.4단계(GitHub 자동 로그인)와 8.5~8.9단계(팀 토큰 주입)가 전부 무력화된다.
+#   → 데스크톱이든 아니든 op 만큼은 반드시 확보한다. (이미 있으면 그대로 넘어간다)
+# ------------------------------------------------------------
+if have op; then
+  :   # 1단계에서 이미 설치됨 — 조용히 넘어간다
+else
+  log "1.8. 1Password CLI(op) 설치 (팀 토큰 자동 주입에 필요)"
+  if add_apt_repo 1password https://downloads.1password.com/linux/keys/1password.asc \
+      "https://downloads.1password.com/linux/debian/${ARCH} stable main"; then
+    apt_install 1password-cli || true
+  fi
+  if have op; then
+    ok "op 설치 완료"
+  else
+    warn "1Password CLI(op) 설치 실패 → 3.4 · 8.5~8.9단계의 토큰 자동 주입을 건너뛰게 됩니다"
+    info "수동 설치 안내: https://developer.1password.com/docs/cli/get-started/"
+  fi
+fi
+
 # ============================================================
 # 2 / 2.5 / 2.6 / 2.7 — AI 코딩 CLI (Claude Code · MCP · codex·agy · Slack CLI)
 # ============================================================
@@ -1292,7 +1321,7 @@ fi
 #   멱등 체크가 바로 동작하도록 PATH에 먼저 반영한다.
 #   (~/.local/bin 을 ~/.zshrc PATH에 넣는 일은 8단계가 따로 한다)
 # ------------------------------------------------------------
-log "Claude Code CLI 설치 (공식 설치 스크립트)"
+log "2. Claude Code CLI 설치 (공식 설치 스크립트)"
 path_prepend "$HOME/.local/bin"
 if have claude; then
   ok "claude 이미 설치됨"
@@ -1330,7 +1359,7 @@ fi
 #   ※ marionette·dart·figma(serve) MCP 정의는 사설 cocode-skills 플러그인 번들에서 제공됨
 #     (coco-de/skills의 install.sh — 아래 3.5단계에서 설치)
 # ------------------------------------------------------------
-log "Claude Code MCP 설치 (figma 플러그인 + zenhub·jira·slack 토큰 등록)"
+log "2.5. Claude Code MCP 설치 (figma 플러그인 + zenhub·jira·slack 토큰 등록)"
 
 if have claude; then
   # 공식 마켓플레이스 등록 (이미 있으면 무시)
@@ -1467,7 +1496,7 @@ fi
 #             최초 실행 시 Google 계정으로 로그인.
 #   두 도구 모두 멱등(이미 있으면 건너뜀) · 실패 시 ⚠ 후 계속.
 # ------------------------------------------------------------
-log "다른 AI 코딩 CLI 설치 (codex, antigravity(agy))"
+log "2.6. 다른 AI 코딩 CLI 설치 (codex, antigravity(agy))"
 
 # codex (OpenAI) — npm 전역 설치
 if have codex; then
@@ -1510,20 +1539,27 @@ fi
 #   claude/agy와 동일하게 성공 판정은 종료 코드가 아니라 바이너리 존재(have slack)로 확인한다.
 #   ~/.local/bin 은 2단계에서 이미 PATH에 반영됨.
 # ------------------------------------------------------------
-log "Slack CLI 설치 (공식 설치 스크립트)"
-if have slack; then
-  ok "slack 이미 설치됨"
+log "2.7. Slack CLI 설치 (공식 설치 스크립트)"
+# ⚠ 1단계에서 깐 Slack **데스크톱 앱**(snap)이 /snap/bin/slack 을 만든다. `have slack` 만 보면
+#   그 앱을 CLI 로 착각해 "이미 설치됨"으로 넘어가고, Slack CLI 는 영영 깔리지 않는다.
+#   그래서 이름이 아니라 **동작**으로 판별한다 — CLI 만 `slack version` 에 응답한다.
+have_slack_cli() {
+  have slack || return 1
+  slack version </dev/null >/dev/null 2>&1
+}
+if have_slack_cli; then
+  ok "slack(CLI) 이미 설치됨"
 else
   mkdir -p "$HOME/.local/bin" 2>/dev/null || true
   curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash || true
   path_prepend "$HOME/.local/bin"
   # 인스톨러가 링크를 걸지 못했으면(관리자 권한 없음) ~/.slack 안의 실제 바이너리를 직접 이어 준다.
-  if ! have slack && [[ -x "$HOME/.slack/bin/slack" ]]; then
+  if ! have_slack_cli && [[ -x "$HOME/.slack/bin/slack" ]]; then
     ln -sf "$HOME/.slack/bin/slack" "$HOME/.local/bin/slack" 2>/dev/null || true
     path_prepend "$HOME/.local/bin"
   fi
-  if have slack; then
-    ok "slack 설치 완료 (최초 사용 시 slack login 으로 워크스페이스 인증)"
+  if have_slack_cli; then
+    ok "slack(CLI) 설치 완료 (최초 사용 시 slack login 으로 워크스페이스 인증)"
   else
     warn "slack 설치 실패 → 건너뜀 (수동 설치: curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash)"
   fi
@@ -1662,8 +1698,10 @@ else
         break
       fi
       if [[ "$git_email" == *@* ]]; then
-        git config --global user.email "$git_email"
-        ok "user.email 설정 완료 ($git_email)"
+        # || 로 받지 않으면 (예: ~/.gitconfig 가 읽기 전용) set -e 에 걸려 여기서 스크립트가 죽는다.
+        git config --global user.email "$git_email" \
+          && ok "user.email 설정 완료 ($git_email)" \
+          || warn "user.email 설정 실패 → 건너뜀 (수동: git config --global user.email $git_email)"
         break
       fi
       echo "  ✗ 이메일 형식이 아닙니다(@가 없음) — 다시 입력해 주세요."
@@ -1818,7 +1856,7 @@ fi
 #   FVM은 프로젝트마다 다른 Flutter 버전을 골라 쓰게 해 주는 도구다. 팀은 FVM으로 버전을
 #   맞추므로 Flutter를 직접 내려받지 않고 FVM을 먼저 깐다.
 # ------------------------------------------------------------
-log "FVM 설치 및 Flutter stable 글로벌 설정"
+log "4-a. FVM 설치 및 Flutter stable 글로벌 설정"
 if have fvm; then
   ok "fvm 이미 설치됨"
 else
@@ -1830,7 +1868,10 @@ else
 fi
 # 방금 깐 fvm 과, fvm 이 깔아 줄 dart/flutter 전역 명령을 이 스크립트가 바로 쓸 수 있게 한다.
 #   (새 터미널용 PATH 설정은 8단계가 ~/.zshrc 에 따로 넣는다)
+# fvm 설치 스크립트 2.0.0 부터 기본 설치 위치가 ~/fvm/bin 이다(~/.fvm_flutter 는 v1 경로로,
+#   마이그레이션 과정에서 오히려 삭제된다). 옛 경로도 함께 넣어 v1 이 남은 PC 도 계속 동작하게 한다.
 path_prepend "$HOME/.fvm_flutter/bin"
+path_prepend "$HOME/fvm/bin"
 path_prepend "$HOME/.pub-cache/bin"
 
 if have fvm; then
@@ -1855,7 +1896,7 @@ run_dart_packages_step
 # 4-c. Google Cloud CLI (gcloud)
 #   Firebase·GCP 프로젝트를 터미널에서 다루는 구글 공식 도구.
 # ------------------------------------------------------------
-log "Google Cloud CLI 설치"
+log "4-c. Google Cloud CLI 설치"
 if have gcloud; then
   ok "gcloud 이미 설치됨"
 else
@@ -1879,7 +1920,7 @@ fi
 #   여기서는 dcm CLI 자체만 설치한다. CI/자동화 인증용 이메일+키(DCM_EMAIL·DCM_CI_KEY)는
 #   ZenHub·Jira·Slang GPT 토큰처럼 1Password 팀 공용 항목에서 읽어 아래 8.8단계에서 주입한다.
 # ------------------------------------------------------------
-log "DCM 설치"
+log "4-d. DCM 설치"
 if have dcm; then
   ok "dcm 이미 설치됨"
 else
@@ -1902,7 +1943,7 @@ fi
 #   ※ 리눅스에는 iOS 개발 도구(Xcode·CocoaPods)가 없어 안드로이드 쪽만 준비한다 —
 #     대체: iOS 빌드는 맥(co-mac 으로 세팅한 PC)이나 CI 의 macOS 러너에서 한다.
 # ------------------------------------------------------------
-log "Android SDK 구성요소 설치 (cmdline-tools, platform-tools, build-tools, platforms, NDK, AVD)"
+log "4-e. Android SDK 구성요소 설치 (cmdline-tools, platform-tools, build-tools, platforms, NDK, AVD)"
 
 # 리눅스 표준 SDK 위치. Android Studio 리눅스판도 같은 경로를 쓰기 때문에,
 # 나중에 Android Studio를 열어도 여기 깔린 구성요소를 그대로 인식한다.
@@ -2087,7 +2128,7 @@ fi
 #   맥에서는 brew로 pyenv를 깔지만, 우분투에는 brew가 없어 pyenv 공식 설치
 #   스크립트(https://pyenv.run)를 쓴다. 설치 위치는 맥과 똑같이 ~/.pyenv 다.
 # ------------------------------------------------------------
-log "Python 최신 3.x 설치 (pyenv)"
+log "5. Python 최신 3.x 설치 (pyenv)"
 
 # ⚠ 리눅스의 pyenv는 파이썬을 "미리 만들어진 파일"로 받지 않고 소스에서 직접 컴파일한다.
 #   아래 라이브러리들이 없으면 빌드가 에러 없이 끝나 놓고도 ssl·sqlite3·lzma 같은 표준
@@ -2143,7 +2184,7 @@ fi
 #   버전을 v0.40.1로 못 박아 두는 이유: master를 그대로 받으면 어느 날 갑자기 동작이
 #   바뀌어 팀원마다 다른 결과가 나올 수 있다.
 # ------------------------------------------------------------
-log "Node.js LTS 설치 (nvm, npm 포함)"
+log "6. Node.js LTS 설치 (nvm, npm 포함)"
 
 export NVM_DIR="$HOME/.nvm"
 
@@ -2176,6 +2217,21 @@ else
 fi
 
 # ------------------------------------------------------------
+# 6.1. codex 재시도 — 2.6단계에서 npm 이 없어 미뤄둔 항목
+#   맥은 codex 를 Homebrew cask 로 깔아 순서 문제가 없지만, 리눅스는 npm 전역 설치라
+#   Node 가 들어오는 6단계 이전에는 설치할 방법이 없다. 2.6단계는 그래서 안내만 남기고
+#   건너뛰는데, 여기서 다시 시도하지 않으면 **전체 설치를 정상 완주해도 codex 는 영영 없다.**
+# ------------------------------------------------------------
+if have codex; then
+  :   # 2.6단계에서 이미 설치됨(예전에 Node 를 깔아 둔 PC) — 조용히 넘어간다
+elif have npm; then
+  log "6.1. codex 설치 (2.6단계에서 Node.js 가 없어 미뤄둔 항목)"
+  npm install -g @openai/codex >/dev/null 2>&1 \
+    && ok "codex 설치 완료 (최초 실행 시 codex 로 ChatGPT 로그인)" \
+    || warn "codex 설치 실패 → 건너뜀 (수동 설치: npm install -g @openai/codex)"
+fi
+
+# ------------------------------------------------------------
 # 6.5. Claude Code 상태줄(statusline) — ccstatusline → Awesome CC Statusline(small)
 #   1차: ccstatusline은 모델·세션 비용·컨텍스트 사용량·git 상태까지 보여주는
 #   대화형 TUI 도구다(Node.js 기반, npx로 그때그때 실행 — 별도 설치 불필요:
@@ -2191,7 +2247,7 @@ fi
 #   실행하면 된다.
 #   ※ 둘 다 node/네트워크가 필요하므로 6단계(Node.js) 바로 뒤에 둔다.
 # ------------------------------------------------------------
-log "Claude Code 상태줄 확인 (ccstatusline 시도 → 실패 시 Awesome CC Statusline(small)로 자동 대체)"
+log "6.5. Claude Code 상태줄 확인 (ccstatusline 시도 → 실패 시 Awesome CC Statusline(small)로 자동 대체)"
 
 if ! have npx; then
   warn "npm(npx)이 없어 상태줄 설정을 건너뜁니다 (6단계 Node.js 설치가 실패했을 수 있습니다)"
@@ -2217,7 +2273,7 @@ fi
 #   맥에는 zsh가 기본으로 깔려 있지만 우분투/데비안에는 없을 수 있다 —
 #   zsh가 없으면 oh-my-zsh 설치 스크립트가 곧바로 실패하므로 여기서 먼저 확인한다.
 # ------------------------------------------------------------
-log "oh-my-zsh 설치"
+log "7. oh-my-zsh 설치"
 
 if ! have zsh; then
   info "zsh가 없어 먼저 설치합니다 (oh-my-zsh·powerlevel10k가 zsh 위에서 동작합니다)"
@@ -2241,7 +2297,7 @@ fi
 
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 
-log "powerlevel10k + 플러그인 설치"
+log "7. powerlevel10k + 플러그인 설치"
 
 if ! have git; then
   warn "git이 없어 powerlevel10k·플러그인 설치를 건너뜁니다 (수동 설치: sudo apt install git)"
@@ -2282,7 +2338,7 @@ fi
 #   Konsole·Alacritty 등 다른 터미널은 자동화 대상이 아니라 안내만 한다.
 #   화면(데스크톱)이 없는 서버 환경이면 이 단계는 통째로 의미가 없어 건너뛴다.
 # ------------------------------------------------------------
-log "터미널 폰트 자동 적용 (MesloLGS NF)"
+log "7.5. 터미널 폰트 자동 적용 (MesloLGS NF)"
 
 if [[ "$HAS_GUI" -ne 0 ]]; then
   ok "화면(데스크톱)이 없는 환경 → 터미널 폰트 단계 건너뜀"
@@ -2416,12 +2472,18 @@ linuxize_zshrc() {
 
 if (( ! ENV_ONLY )); then
 
-log "~/.zshrc 설정 (팀 셸 설정 반영 + 기본 셸을 zsh로)"
+log "8. ~/.zshrc 설정 (팀 셸 설정 반영 + 기본 셸을 zsh로)"
 
 # 0.5단계가 DOTFILE_DIR 을 정해 두지 못했다면(그 단계를 건너뛴 경우) 스크립트 옆 폴더를 본다.
 DOTFILE_DIR="${DOTFILE_DIR:-$SCRIPT_DIR}"
 
-if copy_dotfile "$DOTFILE_DIR/.p10k.zsh" "$HOME/.p10k.zsh" ".p10k.zsh"; then
+# ⚠ 이미 ~/.p10k.zsh 가 있으면 덮어쓰지 않는다.
+#   스크립트가 스스로 안내하는 `p10k configure` 로 프롬프트를 손봐 둔 팀원이 재실행하면
+#   그 결과가 조용히 사라지기 때문이다(README 는 "몇 번을 실행해도 안전"하다고 약속한다).
+#   팀 기본값으로 되돌리고 싶으면 ~/.p10k.zsh 를 지우고 다시 실행하면 된다.
+if [[ -f "$HOME/.p10k.zsh" ]] && ! [[ "$DOTFILE_DIR/.p10k.zsh" -ef "$HOME/.p10k.zsh" ]]; then
+  ok ".p10k.zsh 이미 있음 → 그대로 둡니다 (팀 기본값으로 되돌리려면 ~/.p10k.zsh 를 지우고 다시 실행)"
+elif copy_dotfile "$DOTFILE_DIR/.p10k.zsh" "$HOME/.p10k.zsh" ".p10k.zsh"; then
   :   # copy_dotfile이 결과 메시지를 직접 출력한다
 elif [[ ! -f "$HOME/.p10k.zsh" ]]; then
   # 기존 PC에서 .p10k.zsh를 가져오지 않은 새 PC: powerlevel10k 기본 설정을 복사한다.
@@ -2442,8 +2504,40 @@ if [[ -f "$DOTFILE_DIR/.zshrc" ]]; then
   if [[ "$DOTFILE_DIR/.zshrc" -ef "$HOME/.zshrc" ]]; then
     ok ".zshrc 이미 제자리에 있음 (복사 생략)"
   else
-    [[ -f "$HOME/.zshrc" ]] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%Y%m%d%H%M%S)"
-    cp "$DOTFILE_DIR/.zshrc" "$HOME/.zshrc"
+    # ── 이미 주입돼 있던 팀 토큰 줄을 먼저 건져 둔다 ──
+    #   아래에서 팀 원본 .zshrc 로 통째로 덮어쓰는데, 팀 원본에는 토큰 줄이 없다.
+    #   보통은 8.5~8.9단계가 이 실행에서 다시 주입하지만, 1Password 가 잠겨 있거나
+    #   비대화형이면 그 단계가 건너뛰어져 **토큰이 통째로 사라진다**(도구 하나 추가하려고
+    #   재실행했다가 ZenHub·Jira MCP 가 전부 끊기는 사고). 그래서 덮어쓰기 직후 되돌린다.
+    PRESERVED_TOKENS="$(grep -E '^export (ZENHUB_API_TOKEN|JIRA_API_TOKEN|SLANG_GPT_API_KEY|DCM_EMAIL|DCM_CI_KEY|SLACK_TEAM_ID|SLACK_BOT_TOKEN)=' "$HOME/.zshrc" 2>/dev/null || true)"
+
+    if [[ -f "$HOME/.zshrc" ]]; then
+      ZSHRC_BACKUP="$HOME/.zshrc.backup.$(date +%Y%m%d%H%M%S)"
+      # 백업본에는 팀 공용 토큰이 평문으로 들어 있다 — 남들이 읽지 못하게 권한을 조인다.
+      if cp "$HOME/.zshrc" "$ZSHRC_BACKUP" 2>/dev/null; then
+        chmod 600 "$ZSHRC_BACKUP" 2>/dev/null || true
+        # 실행할 때마다 쌓이면 토큰 사본이 홈에 수십 개 남는다 — 최근 5개만 남기고 지운다.
+        ls -1t "$HOME"/.zshrc.backup.* 2>/dev/null | tail -n +6 | while read -r old_backup; do
+          rm -f "$old_backup" 2>/dev/null || true
+        done
+      fi
+      unset ZSHRC_BACKUP
+    fi
+
+    # cp 실패(예: 예전에 sudo 로 편집해 ~/.zshrc 가 root 소유가 된 PC)를 받지 않으면
+    #   set -e 에 걸려 스크립트가 8단계에서 그대로 죽는다.
+    if cp "$DOTFILE_DIR/.zshrc" "$HOME/.zshrc" 2>/dev/null; then
+      # 건져 둔 토큰 줄을 되돌린다. 8.5~8.9단계가 이어서 돌면 각자 strip 후 최신값으로 다시 넣으므로
+      # 중복되지 않는다(멱등).
+      if [[ -n "$PRESERVED_TOKENS" ]]; then
+        printf '\n%s\n' "$PRESERVED_TOKENS" >> "$HOME/.zshrc"
+        ok "이미 주입돼 있던 팀 토큰을 보존했습니다"
+      fi
+    else
+      warn ".zshrc 복사 실패 → 기존 파일을 그대로 둡니다 (소유자·권한을 확인해 주세요)"
+      info "수동 확인: ls -l ~/.zshrc   (root 소유라면: sudo chown $(id -un) ~/.zshrc)"
+    fi
+    unset PRESERVED_TOKENS
   fi
 
   # --- 리눅스 경로 변환 (팀 .zshrc 는 맥에서 쓰던 파일이다) ---
@@ -2478,6 +2572,11 @@ if [[ -f "$DOTFILE_DIR/.zshrc" ]]; then
     fi
   fi
   ok ".zshrc 반영 완료 (덮어썼다면 기존 파일은 백업됨, 리눅스 호환 패치 적용)"
+elif [[ -f "$HOME/.zshrc" ]] && grep -q 'powerlevel10k' "$HOME/.zshrc" 2>/dev/null; then
+  # 팀 .zshrc 를 못 받았는데(네트워크 일시 오류 등) 이미 세팅이 끝난 PC인 경우다.
+  #   여기서 최소 기본값으로 덮어쓰면 지난 실행의 결과와 토큰이 통째로 날아간다 — 그냥 둔다.
+  ok "기존 ~/.zshrc 를 그대로 둡니다 (팀 설정을 내려받지 못했지만 이미 설정이 들어 있습니다)"
+  info "팀 최신 설정으로 맞추려면 네트워크 확인 후 다시 실행해 주세요"
 else
   [[ -f "$HOME/.zshrc" ]] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%Y%m%d%H%M%S)"
   # 팀 설정을 못 구했을 때만 쓰는 최소 기본값. 팀 .zshrc 를 받아오면 이 파일은 덮어써진다.
@@ -2597,7 +2696,9 @@ else
     if need_sudo && $SUDO chsh -s "$ZSH_BIN" "$(id -un)" >/dev/null 2>&1; then
       ok "기본 셸을 zsh 로 변경했습니다 (로그아웃했다 다시 로그인하면 적용됩니다)"
       NEED_RELOGIN=1
-    elif chsh -s "$ZSH_BIN" >/dev/null 2>&1; then
+    # ⚠ </dev/null 이 없으면, 암호를 물어보는 chsh 가 프롬프트를 /dev/null 로 버린 채
+    #   입력을 무한정 기다려 스크립트가 멈춘 것처럼 보인다.
+    elif chsh -s "$ZSH_BIN" </dev/null >/dev/null 2>&1; then
       ok "기본 셸을 zsh 로 변경했습니다 (로그아웃했다 다시 로그인하면 적용됩니다)"
       NEED_RELOGIN=1
     else
@@ -2839,7 +2940,7 @@ inject_slack_token() {
   unset team_id bot_token
 }
 
-log "ZENHUB_API_TOKEN 주입 (1Password 공용 토큰)"
+log "8.5. ZENHUB_API_TOKEN 주입 (1Password 공용 토큰)"
 # 값이 빈 기존 라인은 먼저 걷어낸다 — 남겨두면 zenhub MCP가 '연결됨'처럼 보이면서
 # 실제 호출만 조용히 실패한다. 주입에 성공하면 어차피 새 값으로 다시 기록된다.
 if zenhub_token_line_is_empty; then
@@ -2933,7 +3034,7 @@ fi
 #   자격증명은 개발팀 공용 계정(dev@cocode.im)의 Jira 토큰(팀 "API Token" 볼트 > "Laputa Atlassian API Token" > "Jira API Token" 필드).
 #   mcp-atlassian(Docker)이 JIRA_USERNAME+JIRA_API_TOKEN으로 Basic 인증을 내부 처리하므로 raw 토큰만 주입한다.
 # ------------------------------------------------------------
-log "JIRA_API_TOKEN 주입 (1Password 공용 계정 Jira 토큰, mcp-atlassian용)"
+log "8.6. JIRA_API_TOKEN 주입 (1Password 공용 계정 Jira 토큰, mcp-atlassian용)"
 # 주입 여부는 10단계 검증에서 ~/.zshrc의 JIRA_API_TOKEN 값(JIRA_VAL)으로 직접 판단한다.
 
 # 값이 빈 기존 라인은 먼저 걷어낸다 (ZenHub와 동일 — 빈 값이 남으면 MCP가 '연결됨'처럼 보이며 호출만 실패)
@@ -2974,7 +3075,7 @@ fi
 #   ※ 이 값은 MCP 인증용이 아니라 slang_gpt CLI가 환경변수로 직접 읽는 값이라
 #     claude mcp 등록 단계가 없다 (그래서 10단계 검증도 'mcp:' 형태가 아닌 단순 주입 여부만 표시).
 # ------------------------------------------------------------
-log "SLANG_GPT_API_KEY 주입 (1Password 공용 키, slang_gpt 다국어 자동 번역용)"
+log "8.7. SLANG_GPT_API_KEY 주입 (1Password 공용 키, slang_gpt 다국어 자동 번역용)"
 
 # 값이 빈 기존 라인은 먼저 걷어낸다 (ZenHub·Jira와 동일 — 빈 값이 남으면 도구가 키를 읽은 것처럼
 # 동작하다 호출만 실패한다)
@@ -3014,7 +3115,7 @@ fi
 #       · 자격 증명(credential) 필드 = DCM_CI_KEY(CI 키)
 #   ※ 두 값이 모두 있어야 인증되므로, 하나라도 못 읽으면 아무것도 주입하지 않는다(반쪽 인증 방지).
 # ------------------------------------------------------------
-log "DCM_EMAIL·DCM_CI_KEY 주입 (1Password 공용 항목 'DCM CI CD', DCM CI 라이선스 인증용)"
+log "8.8. DCM_EMAIL·DCM_CI_KEY 주입 (1Password 공용 항목 'DCM CI CD', DCM CI 라이선스 인증용)"
 
 # 값이 빈 기존 라인은 먼저 걷어낸다 (다른 토큰과 동일 — 빈 값이 남으면 dcm이 키를 읽은 것처럼
 # 동작하다 인증만 조용히 실패한다)
@@ -3050,7 +3151,7 @@ fi
 #   ※ 팀 공용 1Password 항목: "API Token" 볼트 > "Cocode Slack" > SLACK_TEAM_ID·SLACK_BOT_TOKEN 필드
 #   ※ 두 값이 모두 있어야 인증되므로, 하나라도 못 읽으면 아무것도 주입하지 않는다(반쪽 인증 방지, DCM과 동일).
 # ------------------------------------------------------------
-log "SLACK_TEAM_ID·SLACK_BOT_TOKEN 주입 (1Password 공용 항목 'Cocode Slack', slack MCP용)"
+log "8.9. SLACK_TEAM_ID·SLACK_BOT_TOKEN 주입 (1Password 공용 항목 'Cocode Slack', slack MCP용)"
 
 # 값이 빈 기존 라인은 먼저 걷어낸다 (다른 토큰과 동일 — 빈 값이 남으면 MCP가 '연결됨'처럼 보이며 호출만 실패한다)
 if slack_token_line_is_empty; then
@@ -3121,7 +3222,22 @@ run_system_permission_step
 # ------------------------------------------------------------
 # 10. 검증
 # ------------------------------------------------------------
-log "설치 검증"
+# 검증 표의 한 줄을 만든다.
+#   ⚠ `cmd 2>/dev/null | head -1 || echo '❌'` 형태를 쓰면 안 된다 — 파이프라인의 종료코드는
+#     마지막 head 의 것(항상 0)이라 **도구가 없어도 ❌ 가 절대 뜨지 않고 빈칸만 남는다.**
+#     그래서 파이프 결과가 아니라 `have` 로 먼저 존재를 확인한다.
+#   $1=명령 이름, $2=❌ 일 때 덧붙일 안내, $3.. =버전 확인 인자
+ver() {
+  local cmd="$1" hint="$2"; shift 2
+  if have "$cmd"; then
+    local out
+    out="$("$cmd" "$@" </dev/null 2>&1 | head -1)"
+    if [[ -n "$out" ]]; then printf '%s' "$out"; return 0; fi
+  fi
+  printf '%s' "❌${hint:+ $hint}"
+}
+
+log "10. 설치 검증"
 # 안드로이드 관련 변수는 4-e단계가 정해 두지만, 그 단계가 실패했을 수도 있어 기본값을 채워 둔다.
 ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 AVDMANAGER="${AVDMANAGER:-$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager}"
@@ -3130,32 +3246,39 @@ echo "  zsh     : $(zsh --version 2>/dev/null || echo '❌ (수동 설치: sudo 
 # 기본 셸은 '지금 이 터미널'이 아니라 계정 설정을 봐야 한다 (설치 중에는 여전히 bash로 실행 중이므로).
 LOGIN_SHELL="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)"
 echo "  기본 셸 : $([[ "$LOGIN_SHELL" == *zsh ]] && echo "✓ $LOGIN_SHELL (다시 로그인하면 적용)" || echo "⚠ ${LOGIN_SHELL:-알 수 없음} (수동 변경: chsh -s $(command -v zsh 2>/dev/null || echo /usr/bin/zsh))")"
-echo "  git     : $(git --version 2>/dev/null || echo '❌ (수동 설치: sudo apt install git)')"
+echo "  git     : $(ver git '(수동 설치: sudo apt install git)' --version)"
 echo "  git email: $(git config --global user.email 2>/dev/null || echo '❌ (git config --global user.email <이메일> 로 설정)')"
 # GitHub 인증(gh): 3.4단계에서 1Password 토큰으로 자동 로그인을 시도한 결과 — 이게 돼 있어야
 # 아래 cocode-skills·cob(co-bricks) 둘 다 설치된다.
-echo "  gh(GitHub CLI): $(gh --version 2>/dev/null | head -1 || echo '❌ (수동 설치: sudo apt install gh)')"
+echo "  gh(GitHub CLI): $(ver gh '(수동 설치: sudo apt install gh)' --version)"
 echo "  GitHub 인증(gh): $(have gh && gh auth status >/dev/null 2>&1 \
   && echo '✓ 인증됨' \
   || echo '❌ (1Password "API Token" 볼트의 "GitHub API Token" 항목 확인 또는 gh auth login 후 재실행)')"
 # docker는 '설치됨'과 '내 계정으로 쓸 수 있음'이 다르다 — 그룹에 없으면 명령마다 sudo가 필요하다.
-echo "  docker  : $(docker --version 2>/dev/null || echo '❌ (수동 설치: sudo apt install docker.io)')"
+echo "  docker  : $(ver docker '(수동 설치: 3단계 참고 — 도커 공식 저장소)' --version)"
 echo "  docker 그룹: $(in_group docker && echo '✓ 가입됨' || echo '❌ 미가입 (sudo usermod -aG docker '"$(id -un)"' 후 다시 로그인 · 또는 ./linux-setup.sh --system-only)')"
 echo "  kvm(에뮬레이터 가속): $([[ -e /dev/kvm ]] && { in_group kvm && echo '✓ /dev/kvm + 그룹 가입됨' || echo '⚠ /dev/kvm 은 있으나 kvm 그룹 미가입 (./linux-setup.sh --system-only)'; } || echo '❌ /dev/kvm 없음 (BIOS에서 가상화 활성화 필요 — 에뮬레이터가 매우 느립니다)')"
-echo "  go      : $(go version 2>/dev/null || echo '❌ (수동 설치: sudo apt install golang-go)')"
-echo "  jq      : $(jq --version 2>/dev/null || echo '❌ (수동 설치: sudo apt install jq)')"
-echo "  direnv  : $(direnv --version 2>/dev/null || echo '❌ (수동 설치: sudo apt install direnv)')"
-echo "  java    : $(java -version 2>&1 | head -1 || echo '❌ (수동 설치: sudo apt install openjdk-17-jdk)')"
-echo "  lefthook: $(lefthook version 2>/dev/null || echo '❌ (수동 설치: 3단계 참고)')"
-echo "  fvm     : $(fvm --version 2>/dev/null || echo '❌')"
-echo "  flutter : $(flutter --version 2>/dev/null | head -1 || echo '❌')"
-echo "  dart    : $(dart --version 2>&1 | head -1 || echo '❌')"
-echo "  gcloud  : $(gcloud --version 2>/dev/null | head -1 || echo '❌ (수동 설치: 4-c단계 참고)')"
-echo "  dcm     : $(dcm --version 2>/dev/null | head -1 || echo '❌ (수동 설치: 4-d단계 참고)')"
-echo "  node    : $(node --version 2>/dev/null || echo '❌')"
-echo "  npm     : $(npm --version 2>/dev/null || echo '❌')"
-echo "  python  : $(pyenv exec python --version 2>/dev/null || python3 --version 2>/dev/null || echo '❌')"
-echo "  claude  : $(claude --version 2>/dev/null || echo '❌ (수동 설치: curl -fsSL https://claude.ai/install.sh | bash)')"
+echo "  go      : $(ver go '(수동 설치: sudo apt install golang-go)' version)"
+echo "  jq      : $(ver jq '(수동 설치: sudo apt install jq)' --version)"
+echo "  direnv  : $(ver direnv '(수동 설치: sudo apt install direnv)' --version)"
+echo "  java    : $(ver java '(수동 설치: sudo apt install openjdk-17-jdk)' -version)"
+echo "  lefthook: $(ver lefthook '(수동 설치: 3단계 참고)' version)"
+echo "  fvm     : $(ver fvm '(수동 설치: curl -fsSL https://fvm.app/install.sh | bash)' --version)"
+echo "  flutter : $(ver flutter '(fvm install stable && fvm global stable)' --version)"
+echo "  dart    : $(ver dart '(fvm global stable 후 새 터미널에서 확인)' --version)"
+echo "  gcloud  : $(ver gcloud '(수동 설치: 4-c단계 참고)' --version)"
+echo "  dcm     : $(ver dcm '(수동 설치: https://dcm.dev/docs/getting-started/)' --version)"
+echo "  node    : $(ver node '(수동 설치: nvm install --lts)' --version)"
+echo "  npm     : $(ver npm '(nvm 으로 Node 를 깔면 함께 들어옵니다)' --version)"
+echo "  python  : $(pyenv exec python --version 2>/dev/null || python3 --version 2>/dev/null || echo '❌ (5단계 재실행 — pyenv install <버전>)')"
+echo "  claude  : $(ver claude '(수동 설치: curl -fsSL https://claude.ai/install.sh | bash)' --version)"
+# 다른 AI 코딩 CLI·Slack CLI — 맥(co-mac)도 같은 자리에서 셋 다 확인한다.
+#   slack 은 데스크톱 앱(snap)이 같은 이름의 명령을 만들므로 `slack version` 응답으로 CLI 만 가려낸다.
+echo "  codex   : $(ver codex '(수동 설치: npm install -g @openai/codex)' --version)"
+echo "  agy     : $(ver agy '(수동 설치: 2.6단계 참고)' --version)"
+SLACK_VER="$(have slack && slack version </dev/null 2>/dev/null | head -1 || true)"
+echo "  slack(CLI): ${SLACK_VER:-❌ (수동 설치: curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash)}"
+unset SLACK_VER
 # 상태줄(ccstatusline / Awesome CC Statusline): npx/curl 실행형이라 have로 확인할 수 없다 —
 #   ~/.claude/settings.json의 statusLine 키 등록 여부로 판정한다.
 echo "  상태줄(statusline): $(grep -q '"statusLine"' "$HOME/.claude/settings.json" 2>/dev/null \
@@ -3210,7 +3333,9 @@ fi
 CS_COUNT=$(ls -d "$HOME/.claude/plugins/marketplaces/cocode-skills/plugins"/*/ 2>/dev/null | grep -c . || true)
 echo "  cocode-skills: $([[ "${CS_COUNT:-0}" -gt 0 ]] && echo "✓ ${CS_COUNT}개 플러그인" || echo '❌ (위 GitHub 인증(gh) 확인 후 재실행)')"
 echo "  android SDK: $([[ -x "$ANDROID_HOME/platform-tools/adb" ]] && echo "✓ $ANDROID_HOME" || echo '❌')"
-echo "  adb     : $("$ANDROID_HOME/platform-tools/adb" --version 2>/dev/null | head -1 || echo '❌')"
+echo "  adb     : $([[ -x "$ANDROID_HOME/platform-tools/adb" ]] \
+  && "$ANDROID_HOME/platform-tools/adb" --version </dev/null 2>&1 | head -1 \
+  || echo '❌ (4-e단계 재실행 — ~/Android/Sdk/platform-tools 에 설치됩니다)')"
 echo "  sdkmanager: $([[ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]] && echo '✓ 설치됨' || echo '❌')"
 echo "  ndk     : $([[ -n "${ANDROID_NDK_HOME:-}" && -d "${ANDROID_NDK_HOME:-}" ]] && echo "✓ $ANDROID_NDK_HOME" || echo '❌')"
 # AVD(안드로이드 가상 기기) 목록 — 이름만 뽑아 한 줄로 보여준다.

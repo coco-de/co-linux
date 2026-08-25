@@ -223,10 +223,10 @@ chmod +x linux-setup.sh
 <table>
 <tr>
 <td align="center" width="100"><img src="assets/icons/gcloud.svg" width="36" height="36" alt="Google Cloud CLI"><br><sub><b>gcloud</b></sub></td>
-<td align="center" width="100"><img src="assets/icons/firebase.svg" width="36" height="36" alt="Firebase"><br><sub><b>Firebase</b></sub></td>
 <td align="center" width="100"><img src="assets/icons/python.svg" width="36" height="36" alt="Python"><br><sub><b>Python 3.x</b></sub></td>
 <td align="center" width="100"><img src="assets/icons/nodejs.svg" width="36" height="36" alt="Node.js"><br><sub><b>Node.js LTS</b></sub></td>
 <td align="center" width="100"><img src="assets/icons/npm.svg" width="36" height="36" alt="npm"><br><sub><b>npm</b></sub></td>
+<td align="center" width="100"></td>
 </tr>
 </table>
 
@@ -258,6 +258,7 @@ chmod +x linux-setup.sh
 | **1** | GUI 앱 — Android Studio · Slack · Chrome · 1Password · Tailscale · Orca · Lumide · Zed · Claude Desktop · btop |
 | **1.6** | Chrome 확장 자동 등록 (ZenHub for GitHub) |
 | **1.7** | Pretendard 폰트 9개 스타일 |
+| **1.8** | 1Password CLI(`op`) — 화면 없는 환경에서 1단계를 건너뛴 경우에만 동작 |
 | **2** | Claude Code CLI |
 | **2.5** | Claude MCP 서버 등록 — figma · zenhub · jira(mcp-atlassian) · slack |
 | **2.6** | 다른 AI 코딩 CLI — codex(OpenAI) · agy(Google Antigravity) |
@@ -270,6 +271,7 @@ chmod +x linux-setup.sh
 | **4** | Flutter/Dart(fvm) · Dart 글로벌 패키지 · gcloud · DCM · Android SDK/AVD |
 | **5** | Python (pyenv로 최신 3.x) |
 | **6** | Node.js (nvm으로 LTS) |
+| **6.1** | codex 재설치 시도 — 2.6단계는 Node.js보다 앞이라 그때 건너뛰었기 때문 |
 | **6.5** | Claude Code 상태줄 (ccstatusline) |
 | **7** | oh-my-zsh + powerlevel10k |
 | **7.5** | 터미널 폰트 자동 적용 (MesloLGS NF) |
